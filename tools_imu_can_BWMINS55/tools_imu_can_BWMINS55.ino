@@ -14,11 +14,10 @@ struct Storage {
 };  Storage Settings;      // 11 bytes
 
 #include <FlexCAN_T4.h>
-FlexCAN_T4<CAN2, RX_SIZE_256, TX_SIZE_256> IMU_Bus;
+FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_256> IMU_Bus;
 CAN_message_t msgi;
 
-uint16_t CanBauds = 250000;              //1 = 125k(default settings of canimu module), 2 = 250k, 3 = 500k, 4 = 1000k
-uint8_t bauds = 2;
+uint8_t bauds = 0;
 uint8_t Service = 0;
 float decimal_input;
 float unit_input;
@@ -137,6 +136,7 @@ void serv() {
         byte b = Serial.read();
         if ( b == '?') Help();          
         else if ( b == 'X') exi(); //Exit Service Mode
+        else if ( b == 'a') all();
         else if ( b == '0') setoutput();
         else if ( b == '1') vgt();
         else if ( b == '2') cvcqk();
@@ -165,7 +165,8 @@ void serv() {
   //reboo();
   }
 void Help() {
-  Serial.println("X = service mode exit");
+  Serial.println("X = service mode exit");  
+  Serial.println("a = OneClic config");
   Serial.println("0 = configurer en 3 angles output");
   Serial.println("1 = configurer en 20htz");
   Serial.println("2 = configurer en 125k bauds");
@@ -176,6 +177,63 @@ void Help() {
 //  Serial.println(CanBauds);
   }
 
+void all() {
+  msgi.id = 0x605;
+  msgi.flags.extended = false;
+  msgi.len = 8;
+  msgi.buf[0] = 0x40;
+  msgi.buf[1] = 0x56;
+  msgi.buf[2] = 0x10;
+  msgi.buf[3] = 0x00;
+  msgi.buf[4] = 0x00;
+  msgi.buf[5] = 0x00;
+  msgi.buf[6] = 0x00;
+  msgi.buf[7] = 0x00;
+  IMU_Bus.write(msgi);
+  Serial.println("IMU réglé sur 3 angles output");
+  delay(2000);
+  save();
+  delay(2000);
+  msgi.id = 0x605;
+  msgi.flags.extended = false;
+  msgi.len = 8;
+  msgi.buf[0] = 0x40;
+  msgi.buf[1] = 0x0C;
+  msgi.buf[2] = 0x10;
+  msgi.buf[3] = 0x00;
+  msgi.buf[4] = 0x03;
+  msgi.buf[5] = 0x00;
+  msgi.buf[6] = 0x00;
+  msgi.buf[7] = 0x00;
+  IMU_Bus.write(msgi);
+  Serial.println("IMU réglé en 20 htz");
+  delay(2000);
+  save();
+  delay(2000);
+  msgi.id = 0x605;
+  msgi.flags.extended = false;
+  msgi.len = 8;
+  msgi.buf[0] = 0x40;
+  msgi.buf[1] = 0x20;
+  msgi.buf[2] = 0x10;
+  msgi.buf[3] = 0x00;
+  msgi.buf[4] = 0x02;
+  msgi.buf[5] = 0x00;
+  msgi.buf[6] = 0x00;
+  msgi.buf[7] = 0x00;
+  IMU_Bus.write(msgi);
+  Serial.println("réglé sur 250k bauds");
+  delay(2000);
+  save();
+  delay(500);
+  Serial.println("Patientez, reboot en cours");
+  Settings.Kb  = 2;
+  //save in EEPROM and restart
+  EEPROM.put(10, Settings);
+  delay(2000);
+  reboo();
+  }
+  
 void setoutput() {
     msgi.id = 0x605;
   msgi.flags.extended = false;
