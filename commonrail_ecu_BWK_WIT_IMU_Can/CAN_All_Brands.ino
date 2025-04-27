@@ -13,6 +13,21 @@
 float decimal_input;
 float unit_input;
 
+// Fonction pour décoder X et Y (3 octets, BCD)
+float decodeAngleXY(const byte *dataIn) {
+  float angle = (dataIn[0] & 0x0F) * 100.0
+              + (dataIn[1] >> 4) * 10.0
+              + (dataIn[1] & 0x0F) * 1.0
+              + (dataIn[2] >> 4) * 0.1
+              + (dataIn[2] & 0x0F) * 0.01;
+
+  if (dataIn[0] & 0xF0) {
+    angle = -angle;
+  }
+
+  return angle;
+}
+
 float decode_bcd_angle(uint8_t b1, uint8_t b2) {
   int sign = (b1 & 0x80) ? -1 : 1; // Bit de signe dans le premier byte (bit 7)
 
@@ -651,40 +666,25 @@ if (ISO_Bus.read(msgim))
    {
               if (msgim.id == 0x585)
                 {
-                  decimal_input = msgim.buf[2] / 152.0;
-                  unit_input = (msgim.buf[1] * 1000.0) / 152.0;
+                  roll = decodeAngleXY(&msgim.buf[0]);
+                  pitch = decodeAngleXY(&msgim.buf[3]);                  
+                  yaw = decode_bcd_angle(msgim.buf[6], msgim.buf[7]); // D7-D8
+    
+                  roll *= 10.0;
+                  pitch *= 10.0;
                   
-                  pitch = (unit_input + decimal_input);
-                  
-                  if (msgim.buf[0] >= 10)
+                  if(steerConfig.InvertWAS)
                     {
                       roll *= -1;
                     }
-      
-                  decimal_input = msgim.buf[5] / 152.0;
-                  unit_input = (msgim.buf[4] * 1000.0) / 152.0;
-                  
-                  roll = (unit_input + decimal_input);
-                  
-                  if (msgim.buf[3] >= 10)
+        
+                  // Échange Roll et Pitch selon la variable swapRollPitch
+                  if (steerConfig.IsUseY_Axis)
                     {
-                      pitch *= -1;
+                      float temp = roll;
+                      roll = pitch;
+                      pitch = temp;
                     }
-      
-                yaw = decode_bcd_angle(msgim.buf[6], msgim.buf[7]); // D7-D8
-                
-                if(steerConfig.InvertWAS)
-                  {
-                    roll *= -1;
-                  }
-      
-                // Échange Roll et Pitch selon la variable swapRollPitch
-                if (steerConfig.IsUseY_Axis)
-                  {
-                    float temp = roll;
-                    roll = pitch;
-                    pitch = temp;
-                  }
                }
             if (msgim.id == 0x50)
               {
@@ -752,56 +752,36 @@ if (ISO_Bus.read(msgim))
     }
 }
 
-
 // Décodage de la trame : [0x55 | 0x53 | RollL | RollH | PitchL | PitchH | YawL | YawH]
 void decodeFrameCAN(uint8_t *buf) {
-      int16_t roll_raw;
-      int16_t pitch_raw;
-      float yaw_raw;
-      
-  // Extraction valeurs 16 bits (Little-endian)
-  roll_raw  = (buf[3] << 8) | buf[2];
-  pitch_raw = (buf[5] << 8) | buf[4];
-  yaw_raw   = (buf[7] << 8) | buf[6];
+  // Extraction valeurs (Little-endian signé)
+  int16_t rawX = (int16_t)(buf[3] << 8 | buf[2]);
+  int16_t rawY = (int16_t)(buf[5] << 8 | buf[4]);
+  int16_t rawZ = (int16_t)(buf[7] << 8 | buf[6]);
 
-  // Conversion en degrés
-  roll  = roll_raw  / 32768.0 * 180.0;
-  pitch = pitch_raw / 32768.0 * 180.0;
-  yaw = yaw_raw   / 32768 * 180;
-
-  roll  = roll * 10;
-  pitch = pitch * 10;
-  yaw = yaw * 10;
+  // Conversion selon ta formule
+  float angleX = rawX / 32768.0 * 180.0;
+  float angleY = rawY / 32768.0 * 180.0;
+  float angleZ = rawZ / 32768.0 * 180.0;
+  // Normalisation du Yaw (angleZ) en 0-360°
+  if (angleZ < 0) angleZ += 360.0;
+  roll  = angleY * 10;
+  pitch = angleX * 10;
+  yaw = angleZ * 10;
   
   if(steerConfig.InvertWAS)
     {
       roll *= -1;
     }
-    
-//  // Échange Roll et Pitch selon la variable swapRollPitch
-  if (steerConfig.IsUseY_Axis) {
-    float temp = roll;
-    roll = pitch;
-    pitch = temp;
-  }
+  //if (yaw < 0) yaw = 360.0 + yaw;
 
-    // Normalisation correcte du Yaw à 0-360°
-  //yaw = fmod((yaw + 360), 360);
-  // Normalisation correcte du Yaw à 0-360°
-  if (yaw < 0) yaw = 360.0 + yaw;
-  // Normalisation du Yaw à 0-360°
-  //if (yaw < 0) yaw += 360.0;
-//        if (yaw < 0 && yaw >= -180) //Scale BNO085 yaw from [-180°;180°] to [0;360°]
-//        {
-//          yaw = yaw + 360;
-//        }  
-//  // Affichage clair des résultats
+//  Affichage clair des résultats
 //  Serial.print("Roll: ");
-//  Serial.print(roll, 3);
+//  Serial.print(roll, 2);
 //  Serial.print("°, Pitch: ");
-//  Serial.print(pitch, 3);
+//  Serial.print(pitch, 2);
 //  Serial.print("°, Yaw: ");
-//  Serial.print(yaw, 3);
+//  Serial.print(yaw, 2);
 //  Serial.println("°");
 }
 
