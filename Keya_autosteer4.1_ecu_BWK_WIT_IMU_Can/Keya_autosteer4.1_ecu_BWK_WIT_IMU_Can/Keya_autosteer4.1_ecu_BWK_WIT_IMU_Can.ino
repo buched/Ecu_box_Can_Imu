@@ -148,10 +148,6 @@ void setup()
   Serial.println("\r\nStarting Ethernet...");
   EthernetStart();
 
-  Serial.println("\r\nStarting IMU...");
-  //test if CMPS working
-  uint8_t error;
-
   delay(100);
   Serial.println("Right... time for some CANBUS! And, we're dedicated to Keya here");
   CAN_Setup();
