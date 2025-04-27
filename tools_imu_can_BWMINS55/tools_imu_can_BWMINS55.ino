@@ -64,6 +64,20 @@ void setup(void) {
   Serial.println("Outil de configuration pour Imu BWK215S");
   Serial.println("S pour démarrer");
 }
+// Fonction pour décoder X et Y (3 octets, BCD)
+float decodeAngleXY(const byte *dataIn) {
+  float angle = (dataIn[0] & 0x0F) * 100.0
+              + (dataIn[1] >> 4) * 10.0
+              + (dataIn[1] & 0x0F) * 1.0
+              + (dataIn[2] >> 4) * 0.1
+              + (dataIn[2] & 0x0F) * 0.01;
+
+  if (dataIn[0] & 0xF0) {
+    angle = -angle;
+  }
+
+  return angle;
+}
 
 float decode_bcd_angle(uint8_t b1, uint8_t b2) {
   int sign = (b1 & 0x80) ? -1 : 1; // Bit de signe dans le premier byte (bit 7)
@@ -73,8 +87,8 @@ float decode_bcd_angle(uint8_t b1, uint8_t b2) {
   int units    = (b2 & 0xF0) >> 4;
   int decimals = (b2 & 0x0F);
 
-  float value = (hundreds * 100 + tens * 10 + units) + decimals * 0.1f;
-  return sign * value;
+  float value = (hundreds * 1000 + tens * 100 + units) + decimals;
+  return value;
 }
 
 
@@ -97,35 +111,19 @@ void loop() {
           {
             if (msgi.id == 0x585)
               {
-            decimal_input = msgi.buf[2] / 152.0;
-            unit_input = (msgi.buf[1] * 1000.0) / 152.0;
-            
-            float pitch = (unit_input + decimal_input) / 10;
-            
-            if (msgi.buf[0] >= 10) {
-              roll *= -1;
-            }
+      float angleX = decodeAngleXY(&msgi.buf[0]);
+      float angleY = decodeAngleXY(&msgi.buf[3]);
+      float angleZ = decode_bcd_angle(msgi.buf[6], msgi.buf[7]); // D7-D8
 
-            decimal_input = msgi.buf[5] / 152.0;
-            unit_input = (msgi.buf[4] * 1000.0) / 152.0;
-            
-            float roll = (unit_input + decimal_input) / 10;
-            
-            if (msgi.buf[3] >= 10) {
-              pitch *= -1;
-            }
-
-float yaw   = decode_bcd_angle(msgi.buf[6], msgi.buf[7]); // D7-D8
+      Serial.print("Angle X: ");
+      Serial.print(angleX, 2);
+      Serial.print(" °, Y: ");
+      Serial.print(angleY, 2);
+      Serial.print(" °, Z: ");
+      Serial.print(angleZ, 2);
+      Serial.println(" °");
                 
-// Affichage JSON dans le port série
-                        Serial.print("{\"pitch\": ");
-                        Serial.print(roll, 2);
-                        Serial.print(", \"roll\": ");
-                        Serial.print(pitch, 2);
-                        Serial.print(", \"yaw\": ");
-                        Serial.print(yaw, 2);
-                        Serial.println("}");
-              }
+          }
          }
 }
 
