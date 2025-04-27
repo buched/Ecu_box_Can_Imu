@@ -5,7 +5,7 @@
 
 #include <EEPROM.h>
 // if not in eeprom, overwrite
-#define EEP_Ident 2445
+#define EEP_Ident 2446
 //EEPROM
 int16_t EEread = 0;
 //Variables for settings
@@ -14,7 +14,7 @@ struct Storage {
 };  Storage Settings;      // 11 bytes
 
 #include <FlexCAN_T4.h>
-FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_256> IMU_Bus;
+FlexCAN_T4<CAN2, RX_SIZE_256, TX_SIZE_256> IMU_Bus;
 CAN_message_t msgi;
 
 uint8_t bauds = 0;
