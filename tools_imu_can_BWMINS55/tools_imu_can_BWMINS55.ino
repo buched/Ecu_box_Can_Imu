@@ -5,7 +5,7 @@
 
 #include <EEPROM.h>
 // if not in eeprom, overwrite
-#define EEP_Ident 2446
+#define EEP_Ident 2448
 //EEPROM
 int16_t EEread = 0;
 //Variables for settings
@@ -63,6 +63,38 @@ void setup(void) {
   Serial.println("Outil de configuration pour Imu BWK215S");
   Serial.println("S pour démarrer");
 }
+
+// Décodage de la trame : [0x55 | 0x53 | RollL | RollH | PitchL | PitchH | YawL | YawH]
+void decodeFrameCAN(uint8_t *buf) {
+  // Extraction valeurs (Little-endian signé)
+  int16_t rawX = (int16_t)(buf[3] << 8 | buf[2]);
+  int16_t rawY = (int16_t)(buf[5] << 8 | buf[4]);
+  int16_t rawZ = (int16_t)(buf[7] << 8 | buf[6]);
+
+  // Conversion selon ta formule
+  float angleX = rawX / 32768.0 * 180.0;
+  float angleY = rawY / 32768.0 * 180.0;
+  float angleZ = rawZ / 32768.0 * 180.0;
+  angleZ = -angleZ;
+if (angleZ < 0) angleZ += 360.0f;
+
+  int rollx = angleY * 10;
+  int pitchx = angleX * 10;
+  int yawx = angleZ * 10;
+  int roll =rollx;
+  int pitch = pitchx;
+  int yaw = yawx;
+
+  //Affichage clair des résultats
+  Serial.print("Roll: ");
+  Serial.print(roll);
+  Serial.print("°, Pitch: ");
+  Serial.print(pitch);
+  Serial.print("°, Yaw: ");
+  Serial.print(yaw);
+  Serial.println("°");
+}
+
 // Fonction pour décoder X et Y (3 octets, BCD)
 float decodeAngleXY(const byte *dataIn) {
   float angle = (dataIn[0] & 0x0F) * 100.0
@@ -79,14 +111,14 @@ float decodeAngleXY(const byte *dataIn) {
 }
 
 float decode_bcd_angle(uint8_t b1, uint8_t b2) {
-  int sign = (b1 & 0x80) ? -1 : 1; // Bit de signe dans le premier byte (bit 7)
+  int hundreds = (b1 & 0xF0) >> 4;  // bits 4–7
+  int tens     = (b1 & 0x0F);       // bits 0–3
+  int units    = (b2 & 0xF0) >> 4;  // bits 4–7
+  int tenths   = (b2 & 0x0F);       // bits 0–3
 
-  int hundreds = (b1 & 0x70) >> 4;
-  int tens     = (b1 & 0x0F);
-  int units    = (b2 & 0xF0) >> 4;
-  int decimals = (b2 & 0x0F);
-
-  float value = (hundreds * 1000 + tens * 100 + units) + decimals;
+  float value = (hundreds * 1000.0) + (tens * 100.0) + (units * 10.0) + (tenths * 1);
+    value = -value;
+if (value < 0) value += 3600.0f;
   return value;
 }
 
@@ -106,23 +138,27 @@ void loop() {
               serv();
             }
           }
-          if ( IMU_Bus.read(msgi) ) 
-          {
-            if (msgi.id == 0x585)
-              {
-      float angleX = decodeAngleXY(&msgi.buf[0]);
-      float angleY = decodeAngleXY(&msgi.buf[3]);
-      float angleZ = decode_bcd_angle(msgi.buf[6], msgi.buf[7]); // D7-D8
-
-      Serial.print("Angle X: ");
-      Serial.print(angleX, 2);
-      Serial.print(" °, Y: ");
-      Serial.print(angleY, 2);
-      Serial.print(" °, Z: ");
-      Serial.print(angleZ, 2);
-      Serial.println(" °");
-                
-          }
+            if ( IMU_Bus.read(msgi) ) 
+            {
+              if (msgi.id == 0x585)
+                {
+        float angleX = decodeAngleXY(&msgi.buf[0]);
+        float angleY = decodeAngleXY(&msgi.buf[3]);
+        float angleZ = decode_bcd_angle(msgi.buf[6], msgi.buf[7]); // D7-D8
+  
+        Serial.print("Angle X: ");
+        Serial.print(angleX, 2);
+        Serial.print(" °, Y: ");
+        Serial.print(angleY, 2);
+        Serial.print(" °, Z: ");
+        Serial.print(angleZ, 2);
+        Serial.println(" °");
+                  
+            }
+          if (msgi.id == 0x50)
+            {
+              decodeFrameCAN(msgi.buf);
+            }
          }
 }
 
@@ -265,7 +301,7 @@ void vgt() {
   msgi.buf[6] = 0x00;
   msgi.buf[7] = 0x00;
   IMU_Bus.write(msgi);
-  Serial.println("IMU réglé en 20 htz");
+  Serial.println("IMU réglé en 10 htz");
   delay(2000);
   save();
 }
