@@ -14,7 +14,6 @@ float decodeAngleXY(const byte *dataIn) {
   if (dataIn[0] & 0xF0) {
     angle = -angle;
   }
-
   return angle;
 }
 
@@ -25,6 +24,8 @@ float decode_bcd_angle(uint8_t b1, uint8_t b2) {
   int tenths   = (b2 & 0x0F);       // bits 0–3
 
   float value = (hundreds * 1000.0) + (tens * 100.0) + (units * 10.0) + (tenths * 1);
+  value = -value;
+  if (value < 0) value += 3600.0f;
   return value;
 }
 
@@ -66,7 +67,7 @@ CAN_message_t msgim;
               {
               roll = decodeAngleXY(&msgim.buf[0]);
               pitch = decodeAngleXY(&msgim.buf[3]);                  
-              yaw = 3600 - decode_bcd_angle(msgim.buf[6], msgim.buf[7]); // D7-D8
+              yaw = decode_bcd_angle(msgim.buf[6], msgim.buf[7]); // D7-D8
 
               roll *= 10.0;
               pitch *= 10.0;
@@ -83,16 +84,6 @@ CAN_message_t msgim;
                   roll = pitch;
                   pitch = temp;
                 }
-
-              //  Affichage clair des résultats
-//  Serial.print("Roll: ");
-//  Serial.print(roll, 2);
-//  Serial.print("°, Pitch: ");
-//  Serial.print(pitch, 2);
-//  Serial.print("°, Yaw: ");
-//  Serial.print(yaw, 2);
-//  Serial.println("°");
-
              }
             if (msgim.id == 0x50)
               {
@@ -114,11 +105,6 @@ void decodeFrameCAN(uint8_t *buf) {
   float angleZ = rawZ / 32768.0 * 180.0;
   angleZ = -angleZ;
 if (angleZ < 0) angleZ += 360.0f;
-  // Normalisation du Yaw (angleZ) en 0-360°
-  //if (angleZ < 0) angleZ += 360.0;
-//  roll  = angleY * 10;
-//  pitch = angleX * 10;
-//  yaw = angleZ * 10;
   int rollx = angleY * 10;
   int pitchx = angleX * 10;
   int yawx = angleZ * 10;
@@ -129,14 +115,4 @@ if (angleZ < 0) angleZ += 360.0f;
     {
       roll *= -1;
     }
-  //if (yaw < 0) yaw = 360.0 + yaw;
-
-//  Affichage clair des résultats
-//  Serial.print("Roll: ");
-//  Serial.print(roll, 2);
-//  Serial.print("°, Pitch: ");
-//  Serial.print(pitch, 2);
-//  Serial.print("°, Yaw: ");
-//  Serial.print(yaw, 2);
-//  Serial.println("°");
 }
