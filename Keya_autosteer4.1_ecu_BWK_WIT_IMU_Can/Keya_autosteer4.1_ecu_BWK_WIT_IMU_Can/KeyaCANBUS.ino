@@ -36,6 +36,8 @@ float decode_bcd_angle(uint8_t b1, uint8_t b2) {
   int tenths   = (b2 & 0x0F);       // bits 0–3
 
   float value = (hundreds * 1000.0) + (tens * 100.0) + (units * 10.0) + (tenths * 1);
+  value = -value;
+  if (value < 0) value += 3600.0f;
   return value;
 }
 
@@ -301,7 +303,7 @@ void I_receive()
           {
               roll = decodeAngleXY(&msgim.buf[0]);
               pitch = decodeAngleXY(&msgim.buf[3]);                  
-              yaw = 3600 - decode_bcd_angle(msgim.buf[6], msgim.buf[7]); // D7-D8
+              yaw = decode_bcd_angle(msgim.buf[6], msgim.buf[7]); // D7-D8
 
               roll *= 10.0;
               pitch *= 10.0;
